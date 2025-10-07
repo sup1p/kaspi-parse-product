@@ -1,5 +1,7 @@
-import re
 from typing import Optional
+from urllib.parse import urlparse, parse_qs
+import re
+
 
 PRICE_RE = re.compile(r"[\d\s]+")  # для извлечения чисел из текста цены
 
@@ -145,3 +147,33 @@ def extract_city_id_from_url(url: str):
     match_city = re.search(r'[?&]c=(\d+)', url)
     city_id = match_city.group(1) # if match_city else "750000000"  # Алматы по умолчанию
     return city_id
+
+
+
+def is_valid_kaspi_url(url: str) -> bool:
+    """
+    Проверяет, что ссылка Kaspi.kz валидна и содержит:
+      - product_id в формате /p/...-123456789/
+      - параметр ?c=750000000 (число)
+    Возвращает True, если всё ок, иначе False.
+    """
+    try:
+        parsed = urlparse(url)
+
+        # Проверяем домен
+        if "kaspi.kz" not in parsed.netloc.lower():
+            return False
+
+        # Проверяем product_id в пути
+        if not re.search(r'/p/[^/]+-(\d+)(?:/)?$', parsed.path):
+            return False
+
+        # Проверяем city_id в query (?c=...)
+        qs = parse_qs(parsed.query)
+        c = qs.get("c", [None])[0]
+        if not (c and c.isdigit()):
+            return False
+
+        return True
+    except Exception:
+        return False

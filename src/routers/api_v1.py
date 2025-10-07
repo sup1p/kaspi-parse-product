@@ -1,9 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
-from src.services.kaspi_parser import fetch_offers, get_category_path, parse_kaspi_product_with_bs
+from fastapi import APIRouter, HTTPException
+
+from src.services.kaspi_parser import parse_kaspi_product_with_bs
+from src.utils import is_valid_kaspi_url
+from src.schemas import SeedRequest
+
 
 router = APIRouter(prefix="/parser", tags=["parser"])
 
-@router.post("/scrape-offers")
-def scrape_offers():
-    url = "https://kaspi.kz/shop/p/apple-iphone-16-pro-max-256gb-zolotistyi-123890547/?c=750000000"
-    return fetch_offers(url)
+@router.post("/scrape-props")
+def scrape_props(data: SeedRequest):
+    url = data.product_url
+    if not is_valid_kaspi_url(url):
+        raise HTTPException(status_code=400, detail="Invalid Kaspi URL")
+    
+    data = parse_kaspi_product_with_bs(url, headless=True)
+    return data
