@@ -52,3 +52,7 @@ coverage.xml
 output.csv
 only_ids.txt
 product_samples.json
+
+# Exported data
+export/products/*
+export/offers/*
