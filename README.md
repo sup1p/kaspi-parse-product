@@ -278,15 +278,6 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=app_db
 DB_PORT=5432
-
-# Приложение
-APP_NAME=Kaspi Parser
-DEBUG=True
-LOG_LEVEL=INFO
-
-# Парсинг
-PARSER_DELAY=2
-MAX_RETRIES=3
 ```
 
 ### Логирование
