@@ -17,12 +17,7 @@ import re
 
 
 def parse_kaspi_product_with_bs(url: str, headless: bool = True, wait_seconds: int = 5) -> Dict[str, Any]:
-    """
-    Рендерим страницу через Playwright, ждём загрузки, получаем final HTML и парсим через BeautifulSoup.
-
-    Возвращаем dict с ключами:
-      - url, name, category, price_min, price_max, rating, reviews_count, images (list), attributes (dict)
-    """
+    
     result: Dict[str, Any] = {
         "url": url,
         "name": None,
@@ -72,16 +67,8 @@ def parse_kaspi_product_with_bs(url: str, headless: bool = True, wait_seconds: i
     if h1:
         result["name"] = h1.get_text(strip=True)
 
-    # CATEGORY: хлебные крошки — берём последний <a> в блоке breadcrumbs
-    try:
-        crumbs = soup.select("nav.breadcrumbs a, .breadcrumbs__link, a.breadcrumbs__link")
-        if crumbs:
-            result["category"] = crumbs[-1].get_text(strip=True)
-    except Exception:
-        pass
 
     # PRICE: ищем элементы, содержащие символ валюты (₸) или классы с price
-    # Популярные селекторы: .price, .item__price, .product-price, .product__price
     price_candidates = []
     for sel in ["span[itemprop='price']", ".price", ".item__price", ".product-price", ".product__price", ".price__main"]:
         for t in soup.select(sel):
@@ -94,27 +81,6 @@ def parse_kaspi_product_with_bs(url: str, headless: bool = True, wait_seconds: i
         for m in re.finditer(r"[\d\s]{2,}\s*₸", text_all):
             price_candidates.append(m.group(0))
 
-    if price_candidates:
-        # возьмём минимальную и максимальную найденные цены
-        nums = [parse_price(p) for p in price_candidates]
-        nums = [n for n in nums if n is not None]
-        if nums:
-            result["price_min"] = min(nums)
-            result["price_max"] = max(nums)
-
-    # RATING и REVIEWS: селекторы возможны .rating__value, .rating, .rate, .reviews-count
-    rating_sel = soup.select_one(".rating__value, .rating .value, .product-rating, [itemprop='ratingValue']")
-    if rating_sel:
-        try:
-            result["rating"] = float(rating_sel.get_text(strip=True).replace(",", "."))
-        except Exception:
-            pass
-
-    reviews_sel = soup.select_one(".reviews-count, .product-reviews-count, [itemprop='reviewCount']")
-    if reviews_sel:
-        rc = re.sub(r"[^\d]", "", reviews_sel.get_text() or "")
-        if rc.isdigit():
-            result["reviews_count"] = int(rc)
 
     # IMAGES: ищем теги <img> внутри галереи, фильтруем по http
     imgs = set()
@@ -124,9 +90,6 @@ def parse_kaspi_product_with_bs(url: str, headless: bool = True, wait_seconds: i
             imgs.add(src.split("?")[0])
     result["images"] = list(imgs)
 
-     # ---------------------------
-    # ATTRIBUTES: улучшенный парсинг
-    # ---------------------------
     attributes = {}
 
     # 1) Собираем все группы спецификаций (если есть)
@@ -163,28 +126,11 @@ def parse_kaspi_product_with_bs(url: str, headless: bool = True, wait_seconds: i
             continue
         attributes[group_name] = group_attrs
 
-    # 4) Собираем множество всех ключей, которые уже добавлены (чтобы сравнить с "Общие")
+    # 4) Собираем множество всех ключей, которые уже добавлены
     existing_keys = set()
     for g in attributes.values():
         existing_keys.update(g.keys())
     existing_keys.update(fallback_attrs.keys())  # учитываем fallback тоже
-
-    # 5) Обрабатываем отложенные группы вроде "Общие"
-    for group_name, group_attrs in parsed_groups:
-        name_lower = (group_name or "").lower()
-        if not name_lower.startswith("общ"):
-            continue  # уже добавили ранее
-        # Проверяем пересечение ключей
-        keys_in_group = set(group_attrs.keys())
-        overlap = keys_in_group & existing_keys
-        if overlap:
-            # Если есть пересечение — считаем группу дублирующей и пропускаем её полностью
-            # (альтернатива: можно добавить только непересекающиеся ключи, но это может оставить "склеенные" строки)
-            continue
-        else:
-            # Если пересечения нет — добавляем группу "Общие" как есть
-            attributes[group_name] = group_attrs
-            existing_keys.update(keys_in_group)
 
     # 6) Если у нас нет ни одной группы, но есть fallback — используем его
     if not attributes and fallback_attrs:
@@ -227,18 +173,6 @@ def parse_kaspi_product_with_bs(url: str, headless: bool = True, wait_seconds: i
         
         
 def fetch_offers(url: str, max_retries: int = 3) -> List[Dict[str, Any]]:
-    """
-    Получает все офферы для продукта с автоматической пагинацией.
-    
-    Args:
-        product_id: ID продукта на Kaspi.kz
-        city_id: ID города (по умолчанию Алматы)
-        max_retries: Максимальное количество попыток для каждого запроса
-    
-    Returns:
-        Список всех найденных офферов
-    """
-
     product_id = extract_product_id_from_url(url)
     city_id = extract_city_id_from_url(url)
 
@@ -320,14 +254,12 @@ def fetch_offers(url: str, max_retries: int = 3) -> List[Dict[str, Any]]:
         
         # Обрабатываем офферы и добавляем в общий список
         for offer in offers:
-            # Безопасное получение цены
             price_value = offer.get("price")
             if isinstance(price_value, dict):
                 price = price_value.get("amount")
             else:
                 price = price_value
             
-            # Создаем упрощенную структуру только с нужными полями
             processed_offer = {
                 "merchant_name": offer.get("merchantName", "Unknown"),
                 "price": price
@@ -350,16 +282,6 @@ def fetch_offers(url: str, max_retries: int = 3) -> List[Dict[str, Any]]:
         
         
 def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, Optional[float]]:
-    """
-    Парсит рейтинг и количество отзывов через Playwright с улучшенной retry логикой.
-    
-    Args:
-        url: URL страницы товара на Kaspi.kz
-        max_retries: Максимальное количество попыток (по умолчанию 3)
-    
-    Returns:
-        Dict с ключами "rating" и "reviews_count" или None если не найдено
-    """
     print(f"Начинаем парсинг рейтинга: {url}")
     
     with sync_playwright() as p:
@@ -382,16 +304,16 @@ def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, O
                 # Ждем появления блока с рейтингом
                 try:
                     page.wait_for_selector(".item__rating", timeout=5000)
-                    print(f"  ✓ Селектор .item__rating найден")
+                    print("  ✓ Селектор .item__rating найден")
                 except PlaywrightTimeoutError:
-                    print(f"  ✗ Селектор .item__rating не найден за 5 сек")
+                    print("  ✗ Селектор .item__rating не найден за 5 сек")
                     if attempt < max_retries - 1:
-                        print(f"  Пауза 2 сек перед следующей попыткой...")
+                        print("  Пауза 2 сек перед следующей попыткой...")
                         time.sleep(2)
                         continue
                     else:
-                        print(f"  Последняя попытка - пробуем парсить имеющийся HTML")
-                
+                        print("  Последняя попытка - пробуем парсить имеющийся HTML")
+
                 # Получаем HTML и парсим
                 html = page.content()
                 soup = BeautifulSoup(html, "html.parser")
@@ -461,17 +383,6 @@ def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, O
     
     
 def get_category_path(url: str, max_retries: int = 3, timeout: int = 10) -> Optional[str]:
-    """
-    Получает путь к категории товара из хлебных крошек с retry логикой.
-    
-    Args:
-        url: URL страницы товара на Kaspi.kz
-        max_retries: Максимальное количество попыток (по умолчанию 3)
-        timeout: Таймаут для каждого запроса в секундах
-    
-    Returns:
-        Строка с путем категории через " > " или None если не найдено
-    """
     print(f"Начинаем получение категории для URL: {url}")
     
     headers = {
@@ -494,11 +405,9 @@ def get_category_path(url: str, max_retries: int = 3, timeout: int = 10) -> Opti
             # Делаем запрос с таймаутом
             response = requests.get(url, headers=headers, timeout=timeout)
             
-            # Проверяем статус код
             if response.status_code == 200:
-                print(f"  ✓ HTTP 200 - страница загружена")
+                print("  ✓ HTTP 200 - страница загружена")
                 
-                # Парсим HTML
                 soup = BeautifulSoup(response.text, "html.parser")
                 
                 # Ищем хлебные крошки с различными селекторами
@@ -530,7 +439,6 @@ def get_category_path(url: str, max_retries: int = 3, timeout: int = 10) -> Opti
                         print(f"  Последняя попытка - возвращаем None")
                         return None
                 
-                # Извлекаем тексты и фильтруем пустые
                 category_items = []
                 for a in breadcrumbs:
                     text = a.get_text(strip=True)

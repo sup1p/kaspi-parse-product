@@ -1,9 +1,8 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, Boolean, Text, Enum
+    Column, Integer, String, Float, ForeignKey, DateTime, Boolean, Text
 )
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
-import enum
 
 Base = declarative_base()
 
@@ -24,15 +23,6 @@ class Product(Base):
     images = relationship("ProductImage", back_populates="product")
     attributes = relationship("ProductAttribute", back_populates="product")
 
-class ProductPriceHistory(Base):
-    __tablename__ = "product_prices_history"
-    id = Column(Integer, primary_key=True)
-    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"))
-    price_min = Column(Float)
-    price_max = Column(Float)
-    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
-    product = relationship("Product", back_populates="prices")
-
 class ProductOffer(Base):
     __tablename__ = "product_offers"
     id = Column(Integer, primary_key=True)
@@ -52,13 +42,6 @@ class ProductOfferHistory(Base):
     new_price = Column(Float)
     changed_at = Column(DateTime(timezone=True), server_default=func.now())
     offer = relationship("ProductOffer", back_populates="history")
-
-class ProductImage(Base):
-    __tablename__ = "product_images"
-    id = Column(Integer, primary_key=True)
-    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"))
-    image_url = Column(Text)
-    product = relationship("Product", back_populates="images")
 
 class ProductAttribute(Base):
     __tablename__ = "product_attributes"
