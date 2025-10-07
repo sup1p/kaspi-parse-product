@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-router = APIRouter("/parser", tags=["parser"])
+router = APIRouter(prefix="/parser", tags=["parser"])
 
 @router.post("/seed")
 def seed_data():

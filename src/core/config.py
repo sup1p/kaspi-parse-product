@@ -1,43 +1,31 @@
-from pathlib import Path
-from typing import Optional
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Settings(BaseSettings):
     """Application settings."""
     
     # Database
-    DATABASE_URL: str
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
+    db_host: str
+    db_port: int
+    database_url: str
     
     # Redis
-    REDIS_URL: str
+    # REDIS_URL: str
     
-    # Celery
-    CELERY_BROKER_URL: str
-    CELERY_RESULT_BACKEND: str
-
-    # Application
-    DEBUG: bool = False
-    LOG_LEVEL: str = "INFO"
-    LOG_FILE: Optional[str] = None
-    JSON_LOGS: bool = True
+    # # Celery
+    # CELERY_BROKER_URL: str
+    # CELERY_RESULT_BACKEND: str
     
-    # Kaspi parsing
-    USER_AGENT: str
-    REQUEST_TIMEOUT: int
-    MAX_RETRIES: int
-
-    # Export directories
-    EXPORT_DIR: Path
-    LOGS_DIR: Path
-    
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+    )
 
 
 # Global settings instance
 settings = Settings()
-
-# Create directories if they don't exist
-settings.EXPORT_DIR.mkdir(exist_ok=True)
-settings.LOGS_DIR.mkdir(exist_ok=True)

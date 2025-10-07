@@ -24,4 +24,5 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "python-multipart>=0.0.9",
     "python-json-logger>=4.0.0",
+    "asyncpg",
 ]

@@ -1,10 +1,6 @@
 import time
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
-from ..core.dependencies import get_db
-from ..schemas import HealthResponse
+from fastapi import APIRouter
+from src.schemas import HealthResponse
 
 router = APIRouter(tags=["health"])
 

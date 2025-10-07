@@ -1,30 +1,41 @@
-FROM python:3.13-slim
+# ---- builder: устанавливаем зависимости и формируем .venv ----
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Настройки uv
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_TOOL_BIN_DIR=/usr/local/bin
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+# Копируем только манифесты зависимостей для кэшируемой установки
+COPY pyproject.toml uv.lock /app/
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
+# Сборка зависимостей проекта в .venv
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --no-dev
 
-# Install dependencies
-RUN uv sync --frozen --no-cache
+# Копируем весь проект после создания .venv
+COPY . /app
 
-# Copy application code
-COPY . .
+# Устанавливаем проект (локальный пакет, если нужен)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev
 
-# Create necessary directories
-RUN mkdir -p export logs celerybeat
+# ---- runtime: минимальный образ с готовой виртуальной средой ----
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS runtime
 
-# Expose port
+WORKDIR /app
+
+# Копируем готовый проект/venv из билдера
+COPY --from=builder /app /app
+
+RUN mkdir -p /app/logs/logs && [ -f /app/logs/logs/logs.log ] || touch /app/logs/logs/logs.log
+
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV APP_ENV=production
+
 EXPOSE 8000
 
-# Default command
 CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

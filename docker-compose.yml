@@ -1,78 +1,40 @@
-version: '3.8'
+version: "3.9"
 
 services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/tzvr
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - ./export:/app/export
-      - ./logs:/app/logs
-    restart: unless-stopped
-
   db:
-    image: postgres:16
+    image: postgres:15
+    container_name: kaspi-parser-db
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tzvr
+      # значения берутся из .env, здесь оставлены дефолты для ясности
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app_db}
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+      start_period: 5s
 
-  redis:
-    image: redis:7-alpine
+  app:
+    build: .
+    container_name: kaspi-parser-app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-
-  celery-worker:
-    build: .
-    command: celery -A src.tasks worker --loglevel=info
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/tzvr
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - db
-      - redis
-    volumes:
-      - ./export:/app/export
-      - ./logs:/app/logs
-    restart: unless-stopped
-
-  celery-beat:
-    build: .
-    command: celery -A src.tasks beat --loglevel=info --scheduler=celery.beat:PersistentScheduler
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/tzvr
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - db
-      - redis
-    volumes:
-      - ./export:/app/export
-      - ./logs:/app/logs
-      - celerybeat_data:/app/celerybeat
+      - "8000:8000"
+    command: ["/bin/sh", "/app/entrypoint.sh"]
     restart: unless-stopped
 
 volumes:
   postgres_data:
-  redis_data:
-  celerybeat_data:
