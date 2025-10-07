@@ -15,11 +15,6 @@ class ProductBase(BaseModel):
     sellers_count: Optional[int] = None
 
 
-class ProductCreate(ProductBase):
-    """Product creation model."""
-    pass
-
-
 class ProductUpdate(BaseModel):
     """Product update model."""
     name: Optional[str] = None
