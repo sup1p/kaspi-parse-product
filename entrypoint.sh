@@ -10,7 +10,7 @@ echo "EntryPoint: waiting for DATABASE..."
 : "${DATABASE_URL:?DATABASE_URL must be set}"
 DB_CHECK_URL="$DATABASE_URL"
 
-# asyncpg не принимает префикс postgresql+asyncpg:// — уберём его для проверки соединения
+# asyncpg не принимает префиксы postgresql+asyncpg:// или postgresql+psycopg2:// — уберём их для проверки соединения
 PY_DSN=$(python - <<'PY'
 import os
 dsn = os.environ.get("DATABASE_URL")
@@ -19,6 +19,8 @@ if dsn is None:
 else:
     if dsn.startswith("postgresql+asyncpg://"):
         print(dsn.replace("postgresql+asyncpg://", "postgresql://", 1))
+    elif dsn.startswith("postgresql+psycopg2://"):
+        print(dsn.replace("postgresql+psycopg2://", "postgresql://", 1))
     else:
         print(dsn)
 PY
@@ -38,20 +40,25 @@ dsn = os.getenv("DATABASE_URL")
 if dsn is None:
     raise SystemExit("DATABASE_URL is not set")
 
-# Подготовим DSN для asyncpg (убрать префикс +asyncpg)
+# Подготовим DSN для asyncpg (убрать префиксы +asyncpg и +psycopg2)
 if dsn.startswith("postgresql+asyncpg://"):
     dsn = dsn.replace("postgresql+asyncpg://", "postgresql://", 1)
+elif dsn.startswith("postgresql+psycopg2://"):
+    dsn = dsn.replace("postgresql+psycopg2://", "postgresql://", 1)
 
 print("Waiting for DB at:", dsn)
-while True:
-    try:
-        conn = asyncio.get_event_loop().run_until_complete(asyncpg.connect(dsn))
-        asyncio.get_event_loop().run_until_complete(conn.close())
-        print("Database is ready")
-        break
-    except Exception as e:
-        print("DB is not ready yet:", e)
-        time.sleep(1)
+async def check_db():
+    while True:
+        try:
+            conn = await asyncpg.connect(dsn)
+            await conn.close()
+            print("Database is ready")
+            break
+        except Exception as e:
+            print("DB is not ready yet:", e)
+            await asyncio.sleep(1)
+
+asyncio.run(check_db())
 PY
 
 # Применяем миграции Alembic (если alembic доступен в PATH)

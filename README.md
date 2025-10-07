@@ -169,6 +169,9 @@ docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgre
 # Применение миграций
 uv run alembic upgrade head
 
+# Браузеры playwright
+uv run playwright install
+
 # Запуск приложения
 uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```

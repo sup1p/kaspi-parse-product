@@ -43,8 +43,18 @@ FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS runtime
 
 WORKDIR /app
 
+# Устанавливаем системные зависимости для Playwright в runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+    libxss1 libasound2 libx11-xcb1 libxcomposite1 libxdamage1 \
+    libxrandr2 libgbm1 libpango-1.0-0 libxcb1 libxshmfence1 libdrm2 \
+    fonts-liberation libpci3 libxkbcommon0 ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
 # Копируем готовый проект/venv из билдера
 COPY --from=builder /app /app
+# Копируем установленные браузеры Playwright
+COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 # Создаём папку под логи (как у тебя)
 RUN mkdir -p /app/logs/logs && [ -f /app/logs/logs/logs.log ] || touch /app/logs/logs/logs.log
