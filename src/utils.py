@@ -1,7 +1,9 @@
 from typing import Optional
 from urllib.parse import urlparse, parse_qs
 import re
+import logging
 
+logger = logging.getLogger(__name__)
 
 PRICE_RE = re.compile(r"[\d\s]+")  # для извлечения чисел из текста цены
 
@@ -22,7 +24,7 @@ def remove_general_if_duplicate(attributes: dict) -> dict:
     if not isinstance(attributes, dict) or not attributes:
         return attributes
 
-    print(f"Начинаем очистку от дубликатов. Исходное количество ключей: {len(attributes)}")
+    logger.info(f"Начинаем очистку от дубликатов. Исходное количество ключей: {len(attributes)}")
     
     # Создаем копию для безопасной работы
     cleaned_attributes = attributes.copy()
@@ -42,15 +44,15 @@ def remove_general_if_duplicate(attributes: dict) -> dict:
             # Обычные отдельные ключи
             individual_keys.add(key)
     
-    print(f"Найдено отдельных ключей: {len(individual_keys)}")
-    print(f"Найдено групповых ключей: {len(group_keys)}")
+    logger.info(f"Найдено отдельных ключей: {len(individual_keys)}")
+    logger.info(f"Найдено групповых ключей: {len(group_keys)}")
     
     # Проверяем каждую группу на дубликаты
     keys_to_remove = set()
     
     for group_key in group_keys:
         group_value = str(attributes[group_key])
-        print(f"\nАнализируем группу: '{group_key}'")
+        logger.info(f"\nАнализируем группу: '{group_key}'")
         
         # Подсчитываем сколько отдельных ключей содержится в тексте группы
         found_keys = []
@@ -68,25 +70,25 @@ def remove_general_if_duplicate(attributes: dict) -> dict:
         
         # Если в группе найдено много отдельных ключей - это дубликат
         if len(found_keys) >= 3:  # Порог: если 3+ ключа найдены в тексте группы
-            print(f"  ✗ Группа '{group_key}' содержит {len(found_keys)} отдельных ключей: {found_keys[:5]}...")
+            logger.info(f"  ✗ Группа '{group_key}' содержит {len(found_keys)} отдельных ключей: {found_keys[:5]}...")
             keys_to_remove.add(group_key)
         else:
-            print(f"  ✓ Группа '{group_key}' уникальна (найдено ключей: {len(found_keys)})")
+            logger.info(f"  ✓ Группа '{group_key}' уникальна (найдено ключей: {len(found_keys)})")
     
     # Также удаляем ключи "Общие" и похожие
     general_keys = [k for k in attributes.keys() if k and 'общ' in k.lower()]
     keys_to_remove.update(general_keys)
     
     if general_keys:
-        print(f"\nУдаляем общие ключи: {general_keys}")
+        logger.info(f"\nУдаляем общие ключи: {general_keys}")
     
     # Удаляем найденные дубликаты
     for key in keys_to_remove:
         cleaned_attributes.pop(key, None)
     
-    print(f"\nРезультат: удалено {len(keys_to_remove)} ключей, осталось {len(cleaned_attributes)}")
+    logger.info(f"\nРезультат: удалено {len(keys_to_remove)} ключей, осталось {len(cleaned_attributes)}")
     if keys_to_remove:
-        print(f"Удаленные ключи: {list(keys_to_remove)}")
+        logger.info(f"Удаленные ключи: {list(keys_to_remove)}")
     
     return cleaned_attributes
 

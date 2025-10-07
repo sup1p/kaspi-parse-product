@@ -5,6 +5,11 @@ from src.utils import (
     extract_city_id_from_url,
     PRICE_RE
     )
+from logs.config_logs import setup_logging
+import logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from bs4 import BeautifulSoup
@@ -38,9 +43,7 @@ def parse_kaspi_product_with_bs(url: str, headless: bool = True, wait_seconds: i
         page.set_extra_http_headers({"Accept-Language": "ru-RU,ru;q=0.9"})
 
         try:
-            # грузим страницу и ждём: либо конкретный селектор, либо networkidle
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            # Попытка: дождаться селектора заголовка или блока характеристик (пара вариантов)
             try:
                 page.wait_for_selector("h1", timeout=10000)
             except PlaywrightTimeoutError:
@@ -200,7 +203,7 @@ def fetch_offers(url: str, max_retries: int = 3) -> List[Dict[str, Any]]:
     try:
         session.get(product_url, timeout=10)
     except requests.RequestException as e:
-        print(f"Ошибка при получении cookies: {e}")
+        logger.error(f"Ошибка при получении cookies: {e}")
         return []
 
     all_offers = []
@@ -224,33 +227,33 @@ def fetch_offers(url: str, max_retries: int = 3) -> List[Dict[str, Any]]:
                     break
                 elif response.status_code == 429:  # Too Many Requests
                     wait_time = 2 ** attempt  # Exponential backoff
-                    print(f"Rate limit, ждем {wait_time} секунд...")
+                    logger.info(f"Rate limit, ждем {wait_time} секунд...")
                     time.sleep(wait_time)
                 else:
-                    print(f"HTTP {response.status_code} на странице {page}, попытка {attempt + 1}")
+                    logger.info(f"HTTP {response.status_code} на странице {page}, попытка {attempt + 1}")
                     time.sleep(1)
             except requests.RequestException as e:
-                print(f"Ошибка запроса на странице {page}, попытка {attempt + 1}: {e}")
+                logger.info(f"Ошибка запроса на странице {page}, попытка {attempt + 1}: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(1)
 
         if not response or response.status_code != 200:
-            print(f"Не удалось получить данные для страницы {page} после {max_retries} попыток")
+            logger.info(f"Не удалось получить данные для страницы {page} после {max_retries} попыток")
             break
 
         try:
             data = response.json()
         except Exception as e:
-            print(f"Ошибка при разборе JSON на странице {page}: {e}")
+            logger.info(f"Ошибка при разборе JSON на странице {page}: {e}")
             break
 
         offers = data.get("offers", [])
         
         if not offers:
-            print(f"Страница {page}: офферы не найдены, завершаем")
+            logger.info(f"Страница {page}: офферы не найдены, завершаем")
             break
             
-        print(f"Страница {page}: найдено {len(offers)} офферов")
+        logger.info(f"Страница {page}: найдено {len(offers)} офферов")
         
         # Обрабатываем офферы и добавляем в общий список
         for offer in offers:
@@ -269,7 +272,7 @@ def fetch_offers(url: str, max_retries: int = 3) -> List[Dict[str, Any]]:
 
         # Проверяем, нужно ли загружать следующую страницу
         if len(offers) < limit:
-            print(f"Получено офферов меньше лимита ({len(offers)} < {limit}), это последняя страница")
+            logger.info(f"Получено офферов меньше лимита ({len(offers)} < {limit}), это последняя страница")
             break
             
         page += 1
@@ -277,12 +280,12 @@ def fetch_offers(url: str, max_retries: int = 3) -> List[Dict[str, Any]]:
         # Небольшая пауза между запросами чтобы не нагружать сервер
         time.sleep(0.5)
 
-    print(f"Всего собрано {len(all_offers)} офферов")
+    logger.info(f"Всего собрано {len(all_offers)} офферов")
     return all_offers
         
         
 def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, Optional[float]]:
-    print(f"Начинаем парсинг рейтинга: {url}")
+    logger.info(f"Начинаем парсинг рейтинга: {url}")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox"])
@@ -290,29 +293,29 @@ def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, O
         
         try:
             page.goto(url, timeout=60000)
-            print("Страница загружена, ищем рейтинг...")
+            logger.info("Страница загружена, ищем рейтинг...")
         except Exception as e:
-            print(f"Ошибка при загрузке страницы: {e}")
+            logger.info(f"Ошибка при загрузке страницы: {e}")
             browser.close()
             return {"rating": None, "reviews_count": None}
         
         # Пытаемся найти рейтинг несколько раз
         for attempt in range(max_retries):
-            print(f"Попытка {attempt + 1}/{max_retries}")
+            logger.info(f"Попытка {attempt + 1}/{max_retries}")
             
             try:
                 # Ждем появления блока с рейтингом
                 try:
                     page.wait_for_selector(".item__rating", timeout=5000)
-                    print("  ✓ Селектор .item__rating найден")
+                    logger.info("  ✓ Селектор .item__rating найден")
                 except PlaywrightTimeoutError:
-                    print("  ✗ Селектор .item__rating не найден за 5 сек")
+                    logger.info("  ✗ Селектор .item__rating не найден за 5 сек")
                     if attempt < max_retries - 1:
-                        print("  Пауза 2 сек перед следующей попыткой...")
+                        logger.info("  Пауза 2 сек перед следующей попыткой...")
                         time.sleep(2)
                         continue
                     else:
-                        print("  Последняя попытка - пробуем парсить имеющийся HTML")
+                        logger.info("  Последняя попытка - пробуем парсить имеющийся HTML")
 
                 # Получаем HTML и парсим
                 html = page.content()
@@ -320,15 +323,15 @@ def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, O
                 rating_block = soup.select_one(".item__rating")
 
                 if not rating_block:
-                    print(f"  ✗ Блок .item__rating не найден в HTML")
+                    logger.info(f"  ✗ Блок .item__rating не найден в HTML")
                     if attempt < max_retries - 1:
-                        print(f"  Пауза 2 сек перед следующей попыткой...")
+                        logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                         time.sleep(2)
                         continue
                     else:
                         break
 
-                print(f"  ✓ Блок рейтинга найден, парсим данные...")
+                logger.info(f"  ✓ Блок рейтинга найден, парсим данные...")
 
                 # Ищем span с классом rating _X
                 span_rating = rating_block.select_one('span[class*="rating _"]')
@@ -339,11 +342,11 @@ def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, O
                     match = re.search(r'_(\d+)', ' '.join(class_list))
                     if match:
                         rating_value = int(match.group(1))
-                        print(f"  ✓ Рейтинг найден: {rating_value}")
+                        logger.info(f"  ✓ Рейтинг найден: {rating_value}")
                     else:
-                        print(f"  ✗ Не удалось извлечь рейтинг из классов: {class_list}")
+                        logger.info(f"  ✗ Не удалось извлечь рейтинг из классов: {class_list}")
                 else:
-                    print(f"  ✗ Span с рейтингом не найден")
+                    logger.info(f"  ✗ Span с рейтингом не найден")
 
                 # Количество отзывов
                 reviews_link = rating_block.select_one(".item__rating-link span")
@@ -354,36 +357,36 @@ def parse_kaspi_rating_playwright(url: str, max_retries: int = 3) -> Dict[str, O
                     match = re.search(r"(\d+)", reviews_text)
                     if match:
                         reviews_count = int(match.group(1))
-                        print(f"  ✓ Количество отзывов найдено: {reviews_count}")
+                        logger.info(f"  ✓ Количество отзывов найдено: {reviews_count}")
                     else:
-                        print(f"  ✗ Не удалось извлечь число отзывов из текста: '{reviews_text}'")
+                        logger.info(f"  ✗ Не удалось извлечь число отзывов из текста: '{reviews_text}'")
                 else:
-                    print(f"  ✗ Ссылка на отзывы не найдена")
+                    logger.info(f"  ✗ Ссылка на отзывы не найдена")
 
                 # Если хотя бы что-то нашли - возвращаем результат
                 if rating_value is not None or reviews_count is not None:
-                    print(f"  ✓ Парсинг успешен на попытке {attempt + 1}")
+                    logger.info(f"  ✓ Парсинг успешен на попытке {attempt + 1}")
                     browser.close()
                     return {"rating": rating_value/10, "reviews_count": reviews_count}
                 else:
-                    print(f"  ✗ Ни рейтинг, ни отзывы не найдены")
+                    logger.info(f"  ✗ Ни рейтинг, ни отзывы не найдены")
                     if attempt < max_retries - 1:
-                        print(f"  Пауза 2 сек перед следующей попыткой...")
+                        logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                         time.sleep(2)
                     
             except Exception as e:
-                print(f"  ✗ Ошибка на попытке {attempt + 1}: {type(e).__name__}: {e}")
+                logger.info(f"  ✗ Ошибка на попытке {attempt + 1}: {type(e).__name__}: {e}")
                 if attempt < max_retries - 1:
-                    print(f"  Пауза 2 сек перед следующей попыткой...")
+                    logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                     time.sleep(2)
 
-        print(f"✗ Все {max_retries} попыток неудачны, возвращаем пустой результат")
+        logger.info(f"✗ Все {max_retries} попыток неудачны, возвращаем пустой результат")
         browser.close()
         return {"rating": None, "reviews_count": None}
     
     
 def get_category_path(url: str, max_retries: int = 3, timeout: int = 10) -> Optional[str]:
-    print(f"Начинаем получение категории для URL: {url}")
+    logger.info(f"Начинаем получение категории для URL: {url}")
     
     headers = {
         "User-Agent": (
@@ -399,14 +402,14 @@ def get_category_path(url: str, max_retries: int = 3, timeout: int = 10) -> Opti
     }
     
     for attempt in range(max_retries):
-        print(f"Попытка {attempt + 1}/{max_retries} получения категории")
+        logger.info(f"Попытка {attempt + 1}/{max_retries} получения категории")
         
         try:
             # Делаем запрос с таймаутом
             response = requests.get(url, headers=headers, timeout=timeout)
             
             if response.status_code == 200:
-                print("  ✓ HTTP 200 - страница загружена")
+                logger.info("  ✓ HTTP 200 - страница загружена")
                 
                 soup = BeautifulSoup(response.text, "html.parser")
                 
@@ -424,19 +427,19 @@ def get_category_path(url: str, max_retries: int = 3, timeout: int = 10) -> Opti
                 for selector in selectors_to_try:
                     breadcrumbs = soup.select(selector)
                     if breadcrumbs:
-                        print(f"  ✓ Хлебные крошки найдены с селектором: {selector}")
+                        logger.info(f"  ✓ Хлебные крошки найдены с селектором: {selector}")
                         break
                     else:
-                        print(f"  - Селектор '{selector}' не дал результатов")
+                        logger.info(f"  - Селектор '{selector}' не дал результатов")
                 
                 if not breadcrumbs:
-                    print(f"  ✗ Хлебные крошки не найдены ни одним из селекторов")
+                    logger.info(f"  ✗ Хлебные крошки не найдены ни одним из селекторов")
                     if attempt < max_retries - 1:
-                        print(f"  Пауза 2 сек перед следующей попыткой...")
+                        logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                         time.sleep(2)
                         continue
                     else:
-                        print(f"  Последняя попытка - возвращаем None")
+                        logger.info(f"  Последняя попытка - возвращаем None")
                         return None
                 
                 category_items = []
@@ -447,59 +450,59 @@ def get_category_path(url: str, max_retries: int = 3, timeout: int = 10) -> Opti
                 
                 if category_items:
                     category_path = " > ".join(category_items)
-                    print(f"  ✓ Путь категории успешно извлечен: '{category_path}'")
+                    logger.info(f"  ✓ Путь категории успешно извлечен: '{category_path}'")
                     return category_path
                 else:
-                    print(f"  ✗ Все элементы хлебных крошек пустые или нерелевантные")
+                    logger.info(f"  ✗ Все элементы хлебных крошек пустые или нерелевантные")
                     if attempt < max_retries - 1:
-                        print(f"  Пауза 2 сек перед следующей попыткой...")
+                        logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                         time.sleep(2)
                         continue
                         
             elif response.status_code == 429:  # Rate limit
                 wait_time = 2 ** attempt  # Exponential backoff
-                print(f"  ✗ HTTP 429 (Rate limit) - ждем {wait_time} секунд...")
+                logger.info(f"  ✗ HTTP 429 (Rate limit) - ждем {wait_time} секунд...")
                 time.sleep(wait_time)
                 continue
                 
             elif response.status_code in [403, 503]:  # Forbidden или Service Unavailable
-                print(f"  ✗ HTTP {response.status_code} - возможно блокировка")
+                logger.info(f"  ✗ HTTP {response.status_code} - возможно блокировка")
                 if attempt < max_retries - 1:
                     wait_time = 3 + attempt  # Увеличиваем задержку
-                    print(f"  Пауза {wait_time} сек перед следующей попыткой...")
+                    logger.info(f"  Пауза {wait_time} сек перед следующей попыткой...")
                     time.sleep(wait_time)
                     continue
                     
             else:
-                print(f"  ✗ HTTP {response.status_code} - неожиданный код ответа")
+                logger.info(f"  ✗ HTTP {response.status_code} - неожиданный код ответа")
                 if attempt < max_retries - 1:
-                    print(f"  Пауза 2 сек перед следующей попыткой...")
+                    logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                     time.sleep(2)
                     continue
                     
         except requests.exceptions.Timeout:
-            print(f"  ✗ Таймаут ({timeout}с) на попытке {attempt + 1}")
+            logger.info(f"  ✗ Таймаут ({timeout}с) на попытке {attempt + 1}")
             if attempt < max_retries - 1:
-                print(f"  Пауза 2 сек перед следующей попыткой...")
+                logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                 time.sleep(2)
                 
         except requests.exceptions.ConnectionError as e:
-            print(f"  ✗ Ошибка соединения на попытке {attempt + 1}: {e}")
+            logger.info(f"  ✗ Ошибка соединения на попытке {attempt + 1}: {e}")
             if attempt < max_retries - 1:
-                print(f"  Пауза 3 сек перед следующей попыткой...")
+                logger.info(f"  Пауза 3 сек перед следующей попыткой...")
                 time.sleep(3)
                 
         except requests.exceptions.RequestException as e:
-            print(f"  ✗ Ошибка запроса на попытке {attempt + 1}: {type(e).__name__}: {e}")
+            logger.info(f"  ✗ Ошибка запроса на попытке {attempt + 1}: {type(e).__name__}: {e}")
             if attempt < max_retries - 1:
-                print(f"  Пауза 2 сек перед следующей попыткой...")
+                logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                 time.sleep(2)
                 
         except Exception as e:
-            print(f"  ✗ Неожиданная ошибка на попытке {attempt + 1}: {type(e).__name__}: {e}")
+            logger.info(f"  ✗ Неожиданная ошибка на попытке {attempt + 1}: {type(e).__name__}: {e}")
             if attempt < max_retries - 1:
-                print(f"  Пауза 2 сек перед следующей попыткой...")
+                logger.info(f"  Пауза 2 сек перед следующей попыткой...")
                 time.sleep(2)
     
-    print(f"✗ Все {max_retries} попыток неудачны, возвращаем None")
+    logger.info(f"✗ Все {max_retries} попыток неудачны, возвращаем None")
     return None

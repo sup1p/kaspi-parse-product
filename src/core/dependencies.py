@@ -3,13 +3,17 @@ Dependency injection module for FastAPI.
 Provides HTTP client instances for API endpoints.
 """
 from src.core.config import settings
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-engine = create_async_engine(settings.database_url, future=True, echo=False)
-AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+# Используем URL как есть, теперь он содержит psycopg2
+engine = create_engine(settings.database_url, echo=False)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-async def get_session():
-    async with AsyncSessionLocal() as session:
-        yield session
+def get_session():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
         

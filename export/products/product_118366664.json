@@ -2,14 +2,14 @@
   "url": "https://kaspi.kz/shop/p/naushniki-air-pro-2-belyi-118366664/?c=750000000",
   "name": "Наушники Air pro 2 белый",
   "category": "Kaspi Магазин > ТВ, Аудио, Видео > Наушники",
-  "price_min": 3000.0,
+  "price_min": 2999.0,
   "price_max": 20000.0,
   "rating": 4.7,
   "reviews_count": 914,
   "images": [
-    "https://resources.cdn-kaspi.kz/img/m/p/he4/h13/85730021834782.jpg",
+    "https://resources.cdn-kaspi.kz/img/m/p/h61/ha2/85730021900318.jpg",
     "https://resources.cdn-kaspi.kz/img/m/p/h44/h92/85730021769246.jpg",
-    "https://resources.cdn-kaspi.kz/img/m/p/h61/ha2/85730021900318.jpg"
+    "https://resources.cdn-kaspi.kz/img/m/p/he4/h13/85730021834782.jpg"
   ],
   "attributes": {
     "Код товара:": "118366664",
@@ -46,6 +46,6 @@
     "Направленный микрофон": "Нет",
     "Съемный микрофон": "Нет"
   },
-  "fetched_at": "2025-10-07T14:43:06Z",
-  "offers_amount": 40
+  "fetched_at": "2025-10-07T16:02:31Z",
+  "offers_amount": 41
 }

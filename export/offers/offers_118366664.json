@@ -1,7 +1,11 @@
 {
-  "fetched_at": "2025-10-07T14:43:06Z",
-  "offers_amount": 40,
+  "fetched_at": "2025-10-07T16:02:31Z",
+  "offers_amount": 41,
   "offers": [
+    {
+      "merchant_name": "Trend store kz",
+      "price": 2999.0
+    },
     {
       "merchant_name": "Buy mart",
       "price": 3000.0
