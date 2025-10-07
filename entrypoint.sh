@@ -1,5 +1,5 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 # Краткое ожидание БД и применение миграций, затем запуск uvicorn.
 # Требует, чтобы все зависимости (asyncpg, alembic, uv и т.д.) были в образе.
@@ -7,8 +7,10 @@ set -e
 echo "EntryPoint: waiting for DATABASE..."
 
 # Проверим переменные окружения
-: "${DATABASE_URL:?DATABASE_URL must be set}"
-DB_CHECK_URL="$DATABASE_URL"
+if [ -z "${DATABASE_URL:-}" ]; then
+    echo "Error: DATABASE_URL environment variable is required"
+    exit 1
+fi
 
 # asyncpg не принимает префиксы postgresql+asyncpg:// или postgresql+psycopg2:// — уберём их для проверки соединения
 PY_DSN=$(python - <<'PY'

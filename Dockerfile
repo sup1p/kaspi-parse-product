@@ -12,7 +12,7 @@ ENV PYTHONUNBUFFERED=1
 # Устанавливаем все системные зависимости сразу (для кеширования)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Базовые инструменты
-    wget ca-certificates gnupg curl \
+    bash wget ca-certificates gnupg curl \
     # Зависимости для компиляции Python пакетов
     build-essential \
     # Все зависимости Playwright/Chromium
@@ -42,6 +42,11 @@ RUN /app/.venv/bin/python -m playwright install --with-deps chromium
 
 # Создаём папки для логов
 RUN mkdir -p /app/logs/logs && touch /app/logs/logs/app.log
+
+# Исправляем права доступа и формат entrypoint.sh
+RUN chmod +x /app/entrypoint.sh && \
+    # Конвертируем CRLF в LF на случай Windows
+    sed -i 's/\r$//' /app/entrypoint.sh
 
 # Устанавливаем переменные окружения
 ENV PATH="/app/.venv/bin:$PATH"
